@@ -93,7 +93,16 @@ Before you begin, you'll need:
 ```bash
 git clone https://github.com/firecrawl/open-agent-builder.git
 cd open-agent-builder
+
+# Copy environment template
+cp .env.example .env.local
+
+# Install dependencies (choose one)
 npm install
+# or
+pnpm install
+# or
+yarn install
 ```
 
 ### 2. Set Up Convex (Database)
@@ -134,29 +143,36 @@ Add to your `.env.local`:
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 
-# Clerk + Convex Integration
+# Clerk JWT Issuer (save this - you'll need it for Step 4)
 CLERK_JWT_ISSUER_DOMAIN=https://your-clerk-domain.clerk.accounts.dev
 ```
 
+> **Note:** Save the `CLERK_JWT_ISSUER_DOMAIN` value - you'll need to hardcode it in `convex/auth.config.ts` in the next step.
+
 ### 4. Configure Convex Authentication
 
-Edit `convex/auth.config.ts` and update the domain:
+Edit `convex/auth.config.ts` and **hardcode** the domain (from Step 3):
 
 ```typescript
 export default {
   providers: [
     {
-      domain: "https://your-clerk-domain.clerk.accounts.dev", // Your Clerk issuer URL
+      domain: "https://your-clerk-domain.clerk.accounts.dev", // Replace with your actual Clerk issuer URL
       applicationID: "convex",
     },
   ],
 };
 ```
 
-Then push the auth config to Convex:
+> **Important:** The domain must be hardcoded (not `process.env.CLERK_JWT_ISSUER_DOMAIN`) because Convex functions don't run in a Node.js environment.
+
+**Restart Convex dev server** to apply changes:
 
 ```bash
+# Stop the server (Ctrl+C), then restart
 npx convex dev
+# or if using the combined command
+npm run dev:all
 ```
 
 ### 5. Set Up Firecrawl (Required)
@@ -262,6 +278,42 @@ npm start
 | **While Loop** | Iteration | Process multiple pages |
 | **User Approval** | Human-in-the-loop | Review before posting |
 | **End** | Workflow completion | Return final output |
+
+---
+
+## Troubleshooting
+
+### Authentication Errors
+
+**Error: "No auth provider found matching the given token"**
+
+This occurs when there's a mismatch between your Clerk JWT issuer and Convex auth config.
+
+**Solutions:**
+1. Verify `convex/auth.config.ts` domain matches your Clerk JWT issuer exactly
+2. Clear browser cache:
+   - Open DevTools → Application → Storage
+   - Clear "Local Storage" and "Cookies" for localhost:3000
+   - Hard refresh (Cmd+Shift+R or Ctrl+Shift+R)
+3. Restart Convex dev server after any `auth.config.ts` changes
+
+### TypeScript Errors
+
+**Error: `Cannot find name 'process'` in `convex/auth.config.ts`**
+
+```
+convex/auth.config.ts:13:15 - error TS2591: Cannot find name 'process'
+```
+
+**Solution:** Hardcode the domain value instead of using `process.env.CLERK_JWT_ISSUER_DOMAIN`. Convex functions don't run in Node.js and can't access `process.env`.
+
+```typescript
+// ❌ Wrong
+domain: process.env.CLERK_JWT_ISSUER_DOMAIN!,
+
+// ✅ Correct
+domain: "https://your-clerk-domain.clerk.accounts.dev",
+```
 
 ---
 
